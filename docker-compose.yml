@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  wecom-sender:
+    build: .
+    container_name: wecom-sender
+    restart: always
+    ports:
+      - "80:80"
+    volumes:
+      # Mount configuration file
+      - ./config.json:/app/config.json
+      # Mount monitor folder (Host Path : Container Path)
+      - ./monitor_data:/data/monitor_reports
+      # Mount logs
+      - ./logs:/app/logs
+    environment:
+      - TZ=Asia/Shanghai
