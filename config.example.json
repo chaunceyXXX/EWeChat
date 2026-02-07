@@ -1,0 +1,17 @@
+{
+    "monitor_folder": "/path/to/monitor/folder",
+    "wecom": {
+        "corpid": "YOUR_CORP_ID",
+        "secret": "YOUR_APP_SECRET",
+        "agentid": "YOUR_AGENT_ID",
+        "touser": "@all",
+        "toparty": "",
+        "token": "YOUR_TOKEN",
+        "aes_key": "YOUR_ENCODING_AES_KEY"
+    },
+    "schedule": {
+        "enabled": true,
+        "time": "10:30",
+        "frequency": "daily"
+    }
+}
