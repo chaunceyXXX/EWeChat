@@ -19,11 +19,12 @@ jobs:
           username: ${{ secrets.SERVER_USERNAME }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            # 进入项目目录（请根据您在服务器上的实际路径修改）
+            # 进入项目目录
             cd /root/wechat-project || exit
             
-            # 拉取最新代码
-            git pull origin main
+            # 使用 Personal Access Token 拉取最新代码
+            git config --global url."https://${{ secrets.GH_TOKEN }}@github.com/".insteadOf "https://github.com/"
+            git pull https://${{ secrets.GH_TOKEN }}@github.com/chaunceyXXX/EWeChat.git main
             
             # 使用您已有的部署脚本进行自动化部署
             # 该脚本会自动安装 Docker（如果需要）、配置镜像加速、并启动容器
