@@ -29,141 +29,134 @@ def run_command(ssh, command, ignore_error=False):
     err = stderr.read().decode().strip()
     
     if exit_status != 0 and not ignore_error:
-        print(f"Error executing command: {command}")
-        print(f"STDOUT: {out}")
-        print(f"STDERR: {err}")
-    
-    return exit_status, out
+        print(f"Error: {err}")
+        return False
+    if out:
+        print(out)
+    return True
 
-def upload_dir(scp, local_path, remote_path):
-    print(f"Uploading directory {local_path} to {remote_path}")
-    scp.put(local_path, recursive=True, remote_path=remote_path)
-
-def main():
-    print(f"Connecting to {HOST}...")
-    ssh = create_ssh_client(HOST, 22, USER, PASS)
-    scp = SCPClient(ssh.get_transport())
-
+def check_docker(ssh):
     print("Checking Docker installation...")
-    code, _ = run_command(ssh, "docker --version", ignore_error=True)
-    if code != 0:
+    if not run_command(ssh, "docker --version"):
         print("Installing Docker...")
-        run_command(ssh, "yum remove -y docker docker-client docker-client-latest docker-common docker-latest docker-latest-logrotate docker-logrotate docker-engine")
-        run_command(ssh, "yum install -y yum-utils device-mapper-persistent-data lvm2")
-        run_command(ssh, "yum-config-manager --add-repo https://mirrors.aliyun.com/docker-ce/linux/centos/docker-ce.repo")
-        run_command(ssh, "yum install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin")
+        run_command(ssh, "curl -fsSL https://get.docker.com | bash")
         run_command(ssh, "systemctl start docker")
         run_command(ssh, "systemctl enable docker")
-    else:
-        print("Docker is already installed.")
+    print("Docker is ready.")
 
-    # Configure Docker Mirror (Critical for China)
+def configure_docker_mirror(ssh):
     print("Configuring Docker Registry Mirrors...")
-    daemon_json = """{
-      "registry-mirrors": [
-        "https://docker.m.daocloud.io",
-        "https://mirror.ccs.tencentyun.com",
-        "https://registry.docker-cn.com"
-      ]
-    }"""
-    # Write to temp file then upload
-    with open("daemon.json", "w") as f:
-        f.write(daemon_json)
-    
-    # Upload to /etc/docker/daemon.json
-    run_command(ssh, "mkdir -p /etc/docker")
-    scp.put("daemon.json", "/etc/docker/daemon.json")
-    os.remove("daemon.json")
-    
-    # Restart docker to apply mirrors
+    mirror_config = '''{
+    "registry-mirrors": [
+        "https://registry.docker-cn.com",
+        "https://docker.mirrors.ustc.edu.cn",
+        "https://hub-mirror.c.163.com",
+        "https://mirror.ccs.tencentyun.com"
+    ]
+}'''
+    run_command(ssh, f"mkdir -p /etc/docker")
+    run_command(ssh, f"echo '{mirror_config}' > /etc/docker/daemon.json")
     run_command(ssh, "systemctl restart docker")
+    time.sleep(5)
 
-    # Determine compose command
-    COMPOSE_CMD = "docker-compose"
+def check_docker_compose(ssh):
     print("Checking Docker Compose...")
-    # Check for plugin first (docker compose)
-    code, _ = run_command(ssh, "docker compose version", ignore_error=True)
-    if code == 0:
-        print("Using 'docker compose' (plugin).")
-        COMPOSE_CMD = "docker compose"
+    if run_command(ssh, "docker compose version", ignore_error=True):
+        return "docker compose"
+    elif run_command(ssh, "docker-compose --version", ignore_error=True):
+        return "docker-compose"
     else:
-        # Check for standalone
-        code, _ = run_command(ssh, "docker-compose --version", ignore_error=True)
-        if code != 0:
-            print("Installing Docker Compose Plugin...")
-            run_command(ssh, "yum install -y docker-compose-plugin")
-            # Recheck
-            code, _ = run_command(ssh, "docker compose version", ignore_error=True)
-            if code == 0:
-                COMPOSE_CMD = "docker compose"
-            else:
-                print("Failed to install docker compose plugin. Trying pip...")
-                run_command(ssh, "yum install -y python3-pip")
-                run_command(ssh, "pip3 install docker-compose")
-                COMPOSE_CMD = "docker-compose"
-        else:
-            COMPOSE_CMD = "docker-compose"
+        print("Installing Docker Compose...")
+        run_command(ssh, "curl -L \"https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)\" -o /usr/local/bin/docker-compose")
+        run_command(ssh, "chmod +x /usr/local/bin/docker-compose")
+        return "docker-compose"
 
-    print(f"Compose command: {COMPOSE_CMD}")
-
+def prepare_remote_files(ssh):
     print("Preparing Remote Directory...")
     run_command(ssh, f"mkdir -p {REMOTE_APP_DIR}")
     run_command(ssh, f"mkdir -p {REMOTE_APP_DIR}/docker")
     run_command(ssh, f"mkdir -p {REMOTE_APP_DIR}/logs")
     run_command(ssh, f"mkdir -p {REMOTE_APP_DIR}/monitor_data")
 
+def upload_files(ssh):
     print("Uploading Files...")
-    scp.put("Dockerfile", f"{REMOTE_APP_DIR}/Dockerfile")
-    scp.put("docker-compose.yml", f"{REMOTE_APP_DIR}/docker-compose.yml")
-    
-    import json
-    with open(CONFIG_FILE, 'r') as f:
-        config = json.load(f)
-    config['monitor_folder'] = "/data/monitor_reports"
-    with open("config_docker.json", "w") as f:
-        json.dump(config, f, indent=4)
-    scp.put("config_docker.json", f"{REMOTE_APP_DIR}/config.json")
-    os.remove("config_docker.json")
+    try:
+        with SCPClient(ssh.get_transport()) as scp:
+            # 上传 docker-compose.yml
+            if os.path.exists("docker-compose.yml"):
+                scp.put("docker-compose.yml", f"{REMOTE_APP_DIR}/docker-compose.yml")
+            
+            # 上传 Dockerfile
+            if os.path.exists("Dockerfile"):
+                scp.put("Dockerfile", f"{REMOTE_APP_DIR}/Dockerfile")
+            
+            # 上传 nginx 配置
+            if os.path.exists("nginx.conf"):
+                scp.put("nginx.conf", f"{REMOTE_APP_DIR}/nginx.conf")
+            
+            # 上传 supervisord 配置
+            if os.path.exists("supervisord.conf"):
+                scp.put("supervisord.conf", f"{REMOTE_APP_DIR}/supervisord.conf")
+            
+            # 上传后端代码
+            if os.path.exists("backend"):
+                run_command(ssh, f"rm -rf {REMOTE_APP_DIR}/backend")
+                run_command(ssh, f"mkdir -p {REMOTE_APP_DIR}/backend")
+                scp.put("backend", f"{REMOTE_APP_DIR}/", recursive=True)
+            
+            # 上传前端代码
+            if os.path.exists("src"):
+                run_command(ssh, f"rm -rf {REMOTE_APP_DIR}/src")
+                run_command(ssh, f"mkdir -p {REMOTE_APP_DIR}/src")
+                scp.put("src", f"{REMOTE_APP_DIR}/", recursive=True)
+            
+            # 上传 package.json
+            if os.path.exists("package.json"):
+                scp.put("package.json", f"{REMOTE_APP_DIR}/package.json")
+            
+            # 上传 requirements.txt
+            if os.path.exists("requirements.txt"):
+                scp.put("requirements.txt", f"{REMOTE_APP_DIR}/requirements.txt")
+                
+    except Exception as e:
+        print(f"Upload error: {e}")
+        return False
+    return True
 
-    upload_dir(scp, "docker", f"{REMOTE_APP_DIR}/docker")
+def deploy_containers(ssh, compose_cmd):
+    print("Deploying Containers...")
+    run_command(ssh, f"cd {REMOTE_APP_DIR} && {compose_cmd} down")
+    run_command(ssh, f"cd {REMOTE_APP_DIR} && {compose_cmd} build --no-cache")
+    run_command(ssh, f"cd {REMOTE_APP_DIR} && {compose_cmd} up -d")
+
+def check_deployment(ssh):
+    print("Checking Deployment Status...")
+    run_command(ssh, "docker ps")
+    print("\nChecking Service Logs...")
+    run_command(ssh, f"cd {REMOTE_APP_DIR} && docker compose logs --tail=20")
+
+def main():
+    print(f"Connecting to {HOST}...")
+    ssh = create_ssh_client(HOST, 22, USER, PASS)
     
-    print("Compressing project context...")
-    # Using python's tarfile to avoid OS differences and quoting issues
-    import tarfile
-    with tarfile.open("project_context.tar.gz", "w:gz") as tar:
-        # Exclude filter
-        def filter_func(tarinfo):
-            name = tarinfo.name
-            if "node_modules" in name or "venv" in name or ".git" in name or "dist" in name or "__pycache__" in name:
-                return None
-            return tarinfo
+    try:
+        check_docker(ssh)
+        configure_docker_mirror(ssh)
+        compose_cmd = check_docker_compose(ssh)
+        prepare_remote_files(ssh)
         
-        # Add current directory
-        tar.add(".", arcname=".", filter=filter_func)
-    
-    print("Uploading project context...")
-    scp.put("project_context.tar.gz", f"{REMOTE_APP_DIR}/project_context.tar.gz")
-    os.remove("project_context.tar.gz")
-    
-    print("Extracting on remote...")
-    run_command(ssh, f"tar -xzf {REMOTE_APP_DIR}/project_context.tar.gz -C {REMOTE_APP_DIR}")
-    run_command(ssh, f"rm -f {REMOTE_APP_DIR}/project_context.tar.gz")
-
-    print("Building and Starting Docker Container...")
-    print("Stopping legacy services...")
-    run_command(ssh, "systemctl stop wecom-backend || true")
-    run_command(ssh, "systemctl stop nginx || true")
-    run_command(ssh, "systemctl disable wecom-backend || true")
-    run_command(ssh, "systemctl disable nginx || true")
-    
-    # Run docker compose
-    run_command(ssh, f"cd {REMOTE_APP_DIR} && {COMPOSE_CMD} up -d --build")
-
-    print("Deployment Complete!")
-    print(f"Visit http://{HOST} to access the system.")
-
-    scp.close()
-    ssh.close()
+        if upload_files(ssh):
+            deploy_containers(ssh, compose_cmd)
+            check_deployment(ssh)
+            print("\n✅ Deployment completed successfully!")
+            print(f"Your application should be accessible at: http://{HOST}:8080")
+        else:
+            print("\n❌ File upload failed!")
+            
+    except Exception as e:
+        print(f"\n❌ Deployment failed: {e}")
+    finally:
+        ssh.close()
 
 if __name__ == "__main__":
     main()
