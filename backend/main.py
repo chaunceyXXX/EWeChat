@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Response, UploadFile, File
+from fastapi import FastAPI, HTTPException, Response, UploadFile, File, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import logging
@@ -133,14 +133,10 @@ def update_config(config: ConfigModel):
     return {"status": "ok", "message": "Config updated"}
 
 @app.post("/api/run")
-def run_now():
-    # Run in background to not block request? 
-    # For simplicity, run sync or maybe async. 
-    # Since execute_task does network I/O, better be async or in thread.
-    # But for this MVP, let's just call it.
+async def run_now(background_tasks: BackgroundTasks):
     try:
-        execute_task()
-        return {"status": "ok", "message": "Task executed"}
+        background_tasks.add_task(execute_task)
+        return {"status": "ok", "message": "Task started in background"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
