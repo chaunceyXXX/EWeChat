@@ -1,0 +1,30 @@
+name: Deploy to Aliyun
+
+on:
+  push:
+    branches:
+      - main  # 只有当代码合并到 main 分支时才触发部署
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to Server
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: ${{ secrets.SERVER_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            # 进入项目目录（请根据您在服务器上的实际路径修改）
+            cd /root/wechat-project || exit
+            
+            # 拉取最新代码
+            git pull origin main
+            
+            # 使用您已有的部署脚本进行自动化部署
+            # 该脚本会自动安装 Docker（如果需要）、配置镜像加速、并启动容器
+            python3 deploy_docker.py
