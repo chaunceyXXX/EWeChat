@@ -1,30 +1,16 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import tsconfigPaths from "vite-tsconfig-paths";
-import { traeBadgePlugin } from 'vite-plugin-trae-solo-badge';
 
-// https://vite.dev/config/
+// https://vitejs.dev/config/
 export default defineConfig({
-  build: {
-    sourcemap: 'hidden',
-  },
-  plugins: [
-    react({
-      babel: {
-        plugins: [
-          'react-dev-locator',
-        ],
-      },
-    }),
-    traeBadgePlugin({
-      variant: 'dark',
-      position: 'bottom-right',
-      prodOnly: true,
-      clickable: true,
-      clickUrl: 'https://www.trae.ai/solo?showJoin=1',
-      autoTheme: true,
-      autoThemeTarget: '#root'
-    }), 
-    tsconfigPaths()
-  ],
+  plugins: [react()],
+  server: {
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+        // rewrite: (path) => path.replace(/^\/api/, '') // 只有当后端不包含 /api 前缀时才需要重写，目前后端路由是 /api/xxx，所以不需要
+      }
+    }
+  }
 })

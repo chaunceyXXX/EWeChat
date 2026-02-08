@@ -82,6 +82,10 @@ def upload_files(ssh):
     print("Uploading Files...")
     try:
         with SCPClient(ssh.get_transport()) as scp:
+            # 上传 config.json
+            if os.path.exists("config.json"):
+                scp.put("config.json", f"{REMOTE_APP_DIR}/config.json")
+                
             # 上传 docker-compose.yml
             if os.path.exists("docker-compose.yml"):
                 scp.put("docker-compose.yml", f"{REMOTE_APP_DIR}/docker-compose.yml")

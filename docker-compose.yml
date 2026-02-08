@@ -11,7 +11,7 @@ services:
       # Mount configuration file
       - ./config.json:/app/config.json
       # Mount monitor folder (Host Path : Container Path)
-      - ./monitor_data:/data/monitor_reports
+      - ./monitor_data:/app/monitor_data
       # Mount logs
       - ./logs:/app/logs
     environment:
