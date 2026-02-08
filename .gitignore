@@ -36,3 +36,8 @@ env/
 # System
 config.json
 app.log
+monitor_data/
+docker/logs/
+*.word
+*.pdf
+*.docx

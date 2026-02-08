@@ -6,7 +6,7 @@ services:
     container_name: wecom-sender
     restart: always
     ports:
-      - "80:80"
+      - "8080:80"
     volumes:
       # Mount configuration file
       - ./config.json:/app/config.json

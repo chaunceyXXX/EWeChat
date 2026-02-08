@@ -9,6 +9,10 @@ RUN npm run build
 # Stage 2: Runtime Environment
 FROM python:3.9-slim
 
+# Replace Debian sources with Aliyun mirrors for China connectivity
+RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debian.sources 2>/dev/null || \
+    sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list
+
 # Install system dependencies (Nginx, Supervisor, curl for healthcheck)
 RUN apt-get update && apt-get install -y \
     nginx \

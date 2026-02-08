@@ -1,8 +1,9 @@
-from fastapi import FastAPI, HTTPException, Response
+from fastapi import FastAPI, HTTPException, Response, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import logging
 import os
+import shutil
 from typing import Optional, Dict, Any
 
 from wechatpy.utils import check_signature
@@ -141,6 +142,28 @@ def run_now():
         execute_task()
         return {"status": "ok", "message": "Task executed"}
     except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/upload")
+async def upload_file(file: UploadFile = File(...)):
+    config = config_manager.load_config()
+    monitor_folder = config.get("monitor_folder")
+    
+    if not monitor_folder:
+        raise HTTPException(status_code=500, detail="Monitor folder not configured")
+        
+    if not os.path.exists(monitor_folder):
+        os.makedirs(monitor_folder)
+        
+    file_path = os.path.join(monitor_folder, file.filename)
+    
+    try:
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        logging.info(f"文件上传成功: {file.filename}")
+        return {"filename": file.filename, "status": "success"}
+    except Exception as e:
+        logging.error(f"文件上传失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/logs")

@@ -12,6 +12,7 @@ interface AppState {
   fetchLogs: () => Promise<void>;
   updateConfig: (config: Config) => Promise<void>;
   runTask: () => Promise<void>;
+  uploadFile: (file: File) => Promise<void>;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -69,6 +70,18 @@ export const useAppStore = create<AppState>((set, get) => ({
       console.error(e);
     } finally {
       set({ isLoading: false });
+    }
+  },
+
+  uploadFile: async (file) => {
+    set({ isLoading: true });
+    try {
+        await api.uploadFile(file);
+    } catch (e) {
+        console.error(e);
+        throw e;
+    } finally {
+        set({ isLoading: false });
     }
   },
 }));

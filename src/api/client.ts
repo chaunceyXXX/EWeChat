@@ -54,4 +54,18 @@ export const api = {
     const res = await fetch(`${BASE_URL}/logs`);
     return res.json();
   },
+
+  uploadFile: async (file: File): Promise<any> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch(`${BASE_URL}/upload`, {
+      method: 'POST',
+      body: formData,
+    });
+    if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail || 'Upload failed');
+    }
+    return res.json();
+  },
 };
